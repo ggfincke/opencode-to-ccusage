@@ -1,0 +1,58 @@
+{
+  "name": "opencode-ccusage-exporter",
+  "version": "0.1.0",
+  "description": "Export OpenCode sessions to ccusage-compatible JSONL format",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "opencode-ccusage-exporter": "./src/index.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ggfincke/opencode-to-ccusage.git"
+  },
+  "homepage": "https://github.com/ggfincke/opencode-to-ccusage#readme",
+  "bugs": {
+    "url": "https://github.com/ggfincke/opencode-to-ccusage/issues"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "keywords": [
+    "opencode",
+    "ccusage",
+    "claude",
+    "usage",
+    "exporter"
+  ],
+  "author": "ggfincke",
+  "license": "MIT",
+  "dependencies": {
+    "ccusage": "^17.2.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

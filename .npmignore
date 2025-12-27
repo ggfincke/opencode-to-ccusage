@@ -1,0 +1,30 @@
+# Test files
+test/
+*.test.ts
+*.spec.ts
+
+# Config files
+tsconfig.json
+vitest.config.ts
+.gitignore
+.npmignore
+
+# IDE
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+
+# Documentation (keep README)
+*.md
+!README.md
+
+# Development
+coverage/
+.nyc_output/
+node_modules/
+
+# Misc
+.DS_Store
+*.log
