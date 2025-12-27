@@ -1,11 +1,11 @@
 {
-  "name": "opencode-ccusage-exporter",
+  "name": "opencode-to-ccusage",
   "version": "0.1.0",
   "description": "Export OpenCode sessions to ccusage-compatible JSONL format",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
-    "opencode-ccusage-exporter": "./src/index.ts"
+    "opencode-to-ccusage": "./src/index.ts"
   },
   "engines": {
     "node": ">=18"

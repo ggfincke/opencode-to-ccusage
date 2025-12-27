@@ -1,4 +1,4 @@
-# opencode-ccusage-exporter
+# opencode-to-ccusage
 
 Export OpenCode sessions to ccusage-compatible JSONL format.
 
@@ -13,7 +13,7 @@ cd opencode-to-ccusage
 npm install
 
 # Or run directly with npx (after publishing)
-npx opencode-ccusage-exporter --help
+npx opencode-to-ccusage --help
 ```
 
 ## Prerequisites

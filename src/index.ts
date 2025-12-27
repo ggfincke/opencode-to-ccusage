@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };
 
 const program = new Command()
-  .name("opencode-ccusage-exporter")
+  .name("opencode-to-ccusage")
   .description("Export OpenCode sessions to ccusage-compatible JSONL format")
   .version(pkg.version);
 
