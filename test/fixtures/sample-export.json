@@ -1,0 +1,242 @@
+{
+  "info": {
+    "id": "ses_test123abc",
+    "version": "1.0.201",
+    "projectID": "global",
+    "directory": "/Users/test/project",
+    "title": "Test Session",
+    "time": {
+      "created": 1766803109094,
+      "updated": 1766803519717
+    },
+    "summary": {
+      "additions": 10,
+      "deletions": 5,
+      "files": 3
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "id": "msg_user001",
+        "sessionID": "ses_test123abc",
+        "role": "user",
+        "time": {
+          "created": 1766803109100
+        },
+        "agent": "code",
+        "model": {
+          "providerID": "anthropic",
+          "modelID": "claude-opus-4-5"
+        }
+      },
+      "parts": [
+        {
+          "id": "prt_001",
+          "type": "text",
+          "text": "Hello, help me with something"
+        }
+      ]
+    },
+    {
+      "info": {
+        "id": "msg_assistant001",
+        "sessionID": "ses_test123abc",
+        "role": "assistant",
+        "time": {
+          "created": 1766803109115,
+          "completed": 1766803204586
+        },
+        "parentID": "msg_user001",
+        "modelID": "claude-opus-4-5",
+        "providerID": "anthropic",
+        "agent": "code",
+        "path": {
+          "cwd": "/Users/test/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 100,
+          "output": 200,
+          "reasoning": 50,
+          "cache": {
+            "read": 1000,
+            "write": 500
+          }
+        },
+        "finish": "end_turn"
+      },
+      "parts": [
+        {
+          "id": "prt_002",
+          "type": "text",
+          "text": "I'll help you with that."
+        }
+      ]
+    },
+    {
+      "info": {
+        "id": "msg_user002",
+        "sessionID": "ses_test123abc",
+        "role": "user",
+        "time": {
+          "created": 1766803210000
+        },
+        "agent": "code",
+        "model": {
+          "providerID": "anthropic",
+          "modelID": "claude-opus-4-5"
+        }
+      },
+      "parts": []
+    },
+    {
+      "info": {
+        "id": "msg_assistant002",
+        "sessionID": "ses_test123abc",
+        "role": "assistant",
+        "time": {
+          "created": 1766803210100,
+          "completed": 1766803215000
+        },
+        "parentID": "msg_user002",
+        "modelID": "claude-sonnet-4-20250514",
+        "providerID": "anthropic",
+        "agent": "code",
+        "path": {
+          "cwd": "/Users/test/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 150,
+          "output": 300,
+          "reasoning": 100,
+          "cache": {
+            "read": 500,
+            "write": 0
+          }
+        },
+        "finish": "end_turn"
+      },
+      "parts": []
+    },
+    {
+      "info": {
+        "id": "msg_assistant003_no_tokens",
+        "sessionID": "ses_test123abc",
+        "role": "assistant",
+        "time": {
+          "created": 1766803220000,
+          "completed": 1766803220100
+        },
+        "parentID": "msg_user002",
+        "modelID": "claude-opus-4-5",
+        "providerID": "anthropic",
+        "agent": "code",
+        "path": {
+          "cwd": "/Users/test/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        }
+      },
+      "parts": []
+    },
+    {
+      "info": {
+        "id": "msg_assistant004_no_cwd",
+        "sessionID": "ses_test123abc",
+        "role": "assistant",
+        "time": {
+          "created": 1766803230000,
+          "completed": 1766803235000
+        },
+        "parentID": "msg_user002",
+        "modelID": "claude-opus-4-5",
+        "providerID": "anthropic",
+        "agent": "code",
+        "cost": 0,
+        "tokens": {
+          "input": 50,
+          "output": 25,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        }
+      },
+      "parts": []
+    },
+    {
+      "info": {
+        "id": "msg_assistant005_cache_only",
+        "sessionID": "ses_test123abc",
+        "role": "assistant",
+        "time": {
+          "created": 1766803240000,
+          "completed": 1766803245000
+        },
+        "parentID": "msg_user002",
+        "modelID": "claude-opus-4-5",
+        "providerID": "anthropic",
+        "agent": "code",
+        "path": {
+          "cwd": "/Users/test/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 15000
+          }
+        }
+      },
+      "parts": []
+    },
+    {
+      "info": {
+        "id": "msg_assistant006_reasoning_only",
+        "sessionID": "ses_test123abc",
+        "role": "assistant",
+        "time": {
+          "created": 1766803250000,
+          "completed": 1766803255000
+        },
+        "parentID": "msg_user002",
+        "modelID": "claude-opus-4-5",
+        "providerID": "anthropic",
+        "agent": "code",
+        "path": {
+          "cwd": "/Users/test/project",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 500,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        }
+      },
+      "parts": []
+    }
+  ]
+}
