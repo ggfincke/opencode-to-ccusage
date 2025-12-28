@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import cliProgress from "cli-progress";
 import { convertSession, toJsonl } from "./converter.js";
 import {
   checkOpenCodeAvailable,
@@ -13,6 +14,25 @@ import {
 } from "./session.js";
 import type { ExportOptions, ExportStats, GroupBy, SessionListItem } from "./types.js";
 import { fileExists, pluralize, verboseLog } from "./utils.js";
+
+// create progress bar for non-verbose mode
+function createProgressBar(total: number): cliProgress.SingleBar | null {
+  // only show progress bar if stdout is a TTY (not piped)
+  if (!process.stdout.isTTY) {
+    return null;
+  }
+
+  const bar = new cliProgress.SingleBar({
+    format: 'Exporting |{bar}| {percentage}% | {value}/{total} sessions | ETA: {eta_formatted}',
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591',
+    hideCursor: true,
+    etaBuffer: 10,
+  }, cliProgress.Presets.shades_classic);
+
+  bar.start(total, 0);
+  return bar;
+}
 
 // create ExportOptions w/ sensible defaults
 export function createExportOptions(
@@ -95,6 +115,10 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
   // track which directories we've created
   const createdDirs = new Set<string>();
 
+  // create progress bar for non-verbose mode
+  const progressBar = !options.verbose ? createProgressBar(sessions.length) : null;
+  let processedCount = 0;
+
   // process each session
   for (const session of sessions) {
     // determine output directory based on groupBy strategy
@@ -112,6 +136,8 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
     if (!options.overwrite && (await fileExists(outFile))) {
       verboseLog(options.verbose, `Skipping ${session.id} (file exists)`);
       stats.sessionsSkipped++;
+      processedCount++;
+      progressBar?.update(processedCount);
       continue;
     }
 
@@ -120,6 +146,8 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
     const exported = await exportSessionWithRetry(session.id, session.directory);
     if (!exported) {
       stats.errors.push(`Failed to export session ${session.id}`);
+      processedCount++;
+      progressBar?.update(processedCount);
       continue;
     }
 
@@ -138,6 +166,8 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
         `  Skipping ${session.id} (no convertible messages)`
       );
       stats.sessionsSkipped++;
+      processedCount++;
+      progressBar?.update(processedCount);
       continue;
     }
 
@@ -156,7 +186,14 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
     }
 
     stats.sessionsExported++;
+
+    // update progress bar
+    processedCount++;
+    progressBar?.update(processedCount);
   }
+
+  // stop progress bar
+  progressBar?.stop();
 
   return stats;
 }
