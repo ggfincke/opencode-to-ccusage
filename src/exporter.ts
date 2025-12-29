@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import cliProgress from "cli-progress";
+import pLimit from "p-limit";
 import { convertSession, toJsonl } from "./converter.js";
 import {
   checkOpenCodeAvailable,
@@ -13,7 +14,10 @@ import {
   listSessions,
 } from "./session.js";
 import type { ExportOptions, ExportStats, GroupBy, SessionListItem } from "./types.js";
-import { fileExists, pluralize, verboseLog } from "./utils.js";
+import { fileExists, getOptimalConcurrency, pluralize, verboseLog } from "./utils.js";
+
+// default error rate threshold (25%) - abort if exceeded
+const DEFAULT_ERROR_THRESHOLD = 0.25;
 
 // create progress bar for non-verbose mode
 function createProgressBar(total: number): cliProgress.SingleBar | null {
@@ -68,6 +72,15 @@ function getProjectSubdir(session: SessionListItem, groupBy: GroupBy): string {
   }
 }
 
+// result from processing a single session
+interface SessionResult {
+  exported: boolean;
+  skipped: boolean;
+  messagesConverted: number;
+  messagesSkipped: number;
+  error?: string;
+}
+
 // * run export process & return statistics
 export async function runExport(options: ExportOptions): Promise<ExportStats> {
   const stats: ExportStats = {
@@ -107,48 +120,69 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
     return stats;
   }
 
+  // determine concurrency level
+  const concurrency = getOptimalConcurrency();
   verboseLog(
     options.verbose,
-    `Found ${pluralize(sessions.length, "session")}`
+    `Found ${pluralize(sessions.length, "session")}, processing with concurrency ${concurrency}`
   );
 
-  // track which directories we've created
+  // track which directories we've created (thread-safe via pre-creation)
   const createdDirs = new Set<string>();
+
+  // pre-create all needed directories to avoid race conditions
+  if (!options.dryRun) {
+    const dirsToCreate = new Set<string>();
+    for (const session of sessions) {
+      const subdir = getProjectSubdir(session, options.groupBy);
+      const projectDir = path.join(options.outDir, "projects", subdir);
+      dirsToCreate.add(projectDir);
+    }
+    await Promise.all(
+      Array.from(dirsToCreate).map(async (dir) => {
+        await mkdir(dir, { recursive: true });
+        createdDirs.add(dir);
+      })
+    );
+  }
 
   // create progress bar for non-verbose mode
   const progressBar = !options.verbose ? createProgressBar(sessions.length) : null;
   let processedCount = 0;
+  let errorCount = 0;
+  let aborted = false;
 
-  // process each session
-  for (const session of sessions) {
-    // determine output directory based on groupBy strategy
+  // create concurrency limiter
+  const limit = pLimit(concurrency);
+
+  // process single session (returns result, doesn't mutate stats directly)
+  async function processSession(session: SessionListItem): Promise<SessionResult> {
+    // check if we should abort due to high error rate
+    if (aborted) {
+      return { exported: false, skipped: true, messagesConverted: 0, messagesSkipped: 0 };
+    }
+
     const subdir = getProjectSubdir(session, options.groupBy);
     const projectDir = path.join(options.outDir, "projects", subdir);
     const outFile = path.join(projectDir, `${session.id}.jsonl`);
 
-    // create directory if needed
-    if (!createdDirs.has(projectDir) && !options.dryRun) {
-      await mkdir(projectDir, { recursive: true });
-      createdDirs.add(projectDir);
-    }
-
     // skip if exists & not overwriting
     if (!options.overwrite && (await fileExists(outFile))) {
       verboseLog(options.verbose, `Skipping ${session.id} (file exists)`);
-      stats.sessionsSkipped++;
-      processedCount++;
-      progressBar?.update(processedCount);
-      continue;
+      return { exported: false, skipped: true, messagesConverted: 0, messagesSkipped: 0 };
     }
 
     // export session (must run from session's directory)
     verboseLog(options.verbose, `Exporting ${session.id} from ${session.directory}...`);
     const exported = await exportSessionWithRetry(session.id, session.directory);
     if (!exported) {
-      stats.errors.push(`Failed to export session ${session.id}`);
-      processedCount++;
-      progressBar?.update(processedCount);
-      continue;
+      return {
+        exported: false,
+        skipped: false,
+        messagesConverted: 0,
+        messagesSkipped: 0,
+        error: `Failed to export session ${session.id}`,
+      };
     }
 
     // convert to ccusage format
@@ -156,19 +190,18 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
       includeReasoningInOutput: options.includeReasoningInOutput,
     });
 
-    stats.messagesConverted += result.lines.length;
-    stats.messagesSkipped += result.skippedCount;
-
     // skip empty sessions
     if (result.lines.length === 0) {
       verboseLog(
         options.verbose,
         `  Skipping ${session.id} (no convertible messages)`
       );
-      stats.sessionsSkipped++;
-      processedCount++;
-      progressBar?.update(processedCount);
-      continue;
+      return {
+        exported: false,
+        skipped: true,
+        messagesConverted: 0,
+        messagesSkipped: result.skippedCount,
+      };
     }
 
     // write or preview
@@ -185,15 +218,63 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
       );
     }
 
-    stats.sessionsExported++;
-
-    // update progress bar
-    processedCount++;
-    progressBar?.update(processedCount);
+    return {
+      exported: true,
+      skipped: false,
+      messagesConverted: result.lines.length,
+      messagesSkipped: result.skippedCount,
+    };
   }
+
+  // process all sessions in parallel with concurrency limit
+  const tasks = sessions.map((session) =>
+    limit(async () => {
+      const result = await processSession(session);
+
+      // update progress (atomic increment)
+      processedCount++;
+      progressBar?.update(processedCount);
+
+      // track errors and check threshold
+      if (result.error) {
+        errorCount++;
+        const errorRate = errorCount / processedCount;
+        if (errorRate > DEFAULT_ERROR_THRESHOLD && processedCount >= 10) {
+          aborted = true;
+        }
+      }
+
+      return result;
+    })
+  );
+
+  // wait for all tasks to complete
+  const results = await Promise.all(tasks);
 
   // stop progress bar
   progressBar?.stop();
+
+  // aggregate results
+  for (const result of results) {
+    if (result.exported) {
+      stats.sessionsExported++;
+    } else if (result.skipped) {
+      stats.sessionsSkipped++;
+    }
+    if (result.error) {
+      stats.errors.push(result.error);
+    }
+    stats.messagesConverted += result.messagesConverted;
+    stats.messagesSkipped += result.messagesSkipped;
+  }
+
+  // report if aborted due to high error rate
+  if (aborted) {
+    const errorRate = (errorCount / processedCount * 100).toFixed(1);
+    console.error(
+      `\nAborted: Error rate (${errorRate}%) exceeded threshold (${DEFAULT_ERROR_THRESHOLD * 100}%)`
+    );
+  }
 
   return stats;
 }

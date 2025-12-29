@@ -3,6 +3,7 @@
 
 import { exec } from "node:child_process";
 import { access, constants } from "node:fs/promises";
+import os from "node:os";
 import { promisify } from "node:util";
 import { MAX_BUFFER } from "./constants.js";
 
@@ -89,6 +90,15 @@ export function formatNumber(num: number): string {
 // format number as USD currency
 export function formatCurrency(amount: number): string {
   return `$${amount.toFixed(2)}`;
+}
+
+// determine optimal concurrency for parallel I/O operations
+// based on system resources (CPU count)
+export function getOptimalConcurrency(): number {
+  const cpus = os.cpus().length;
+  // For I/O-bound work (CLI subprocesses), use ~50% of CPUs
+  // Min 4 for responsiveness, max 16 to avoid overwhelming system
+  return Math.max(4, Math.min(16, Math.floor(cpus * 0.5)));
 }
 
 export interface ExecError extends Error {

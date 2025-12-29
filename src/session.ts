@@ -47,7 +47,7 @@ export async function checkOpenCodeAvailable(): Promise<boolean> {
   }
 }
 
-// * list all sessions by reading directly from OpenCode storage
+// * list all sessions by reading directly from OpenCode storage (parallelized)
 export async function listSessions(
   since?: Date,
   openCodeDir?: string
@@ -59,59 +59,67 @@ export async function listSessions(
     return [];
   }
 
-  const sessions: SessionListItem[] = [];
-
   try {
     // read all project directories under session/
     const projectDirs = await readdir(sessionsDir, { withFileTypes: true });
+    const validProjectDirs = projectDirs.filter((d) => d.isDirectory());
 
-    for (const projectDir of projectDirs) {
-      if (!projectDir.isDirectory()) continue;
+    // process all project directories in parallel
+    const projectResults = await Promise.all(
+      validProjectDirs.map(async (projectDir) => {
+        const projectPath = path.join(sessionsDir, projectDir.name);
+        const sessionFiles = await readdir(projectPath);
+        const jsonFiles = sessionFiles.filter((f) => f.endsWith(".json"));
 
-      const projectPath = path.join(sessionsDir, projectDir.name);
-      const sessionFiles = await readdir(projectPath);
+        // read all session files in this project directory in parallel
+        const sessionResults = await Promise.all(
+          jsonFiles.map(async (sessionFile) => {
+            try {
+              const sessionPath = path.join(projectPath, sessionFile);
+              const content = await readFile(sessionPath, "utf-8");
+              const parsed = StoredSessionInfoSchema.safeParse(JSON.parse(content));
 
-      for (const sessionFile of sessionFiles) {
-        if (!sessionFile.endsWith(".json")) continue;
+              if (!parsed.success) {
+                return null;
+              }
 
-        try {
-          const sessionPath = path.join(projectPath, sessionFile);
-          const content = await readFile(sessionPath, "utf-8");
-          const parsed = StoredSessionInfoSchema.safeParse(JSON.parse(content));
-          
-          if (!parsed.success) {
-            continue;
-          }
-          
-          const sessionInfo = parsed.data;
-          sessions.push({
-            id: sessionInfo.id,
-            title: sessionInfo.title ?? "",
-            updated: sessionInfo.time.updated,
-            created: sessionInfo.time.created,
-            projectId: sessionInfo.projectID,
-            directory: sessionInfo.directory,
-          });
-        } catch {
-          continue;
-        }
-      }
+              const sessionInfo = parsed.data;
+              return {
+                id: sessionInfo.id,
+                title: sessionInfo.title ?? "",
+                updated: sessionInfo.time.updated,
+                created: sessionInfo.time.created,
+                projectId: sessionInfo.projectID,
+                directory: sessionInfo.directory,
+              } as SessionListItem;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        // filter out nulls (failed parses)
+        return sessionResults.filter((s): s is SessionListItem => s !== null);
+      })
+    );
+
+    // flatten all project results into single array
+    const sessions = projectResults.flat();
+
+    // filter by --since if provided
+    let filteredSessions = sessions;
+    if (since) {
+      const sinceMs = since.getTime();
+      filteredSessions = sessions.filter((s) => s.created >= sinceMs);
     }
+
+    // sort by created time ascending (oldest first)
+    filteredSessions.sort((a, b) => a.created - b.created);
+
+    return filteredSessions;
   } catch (err) {
     throw new Error(`Failed to read sessions from storage: ${getErrorMessage(err)}`);
   }
-
-  // filter by --since if provided
-  let filteredSessions = sessions;
-  if (since) {
-    const sinceMs = since.getTime();
-    filteredSessions = sessions.filter((s) => s.created >= sinceMs);
-  }
-
-  // sort by created time ascending (oldest first)
-  filteredSessions.sort((a, b) => a.created - b.created);
-
-  return filteredSessions;
 }
 
 // export single session using OpenCode CLI (must run from session directory)

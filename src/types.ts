@@ -66,9 +66,9 @@ export const SessionInfoSchema = z.object({
     updated: z.number(),
   }),
   summary: z.object({
-    additions: z.number(),
-    deletions: z.number(),
-    files: z.number(),
+    additions: z.number().nullable(),
+    deletions: z.number().nullable(),
+    files: z.number().nullable(),
   }).optional(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;

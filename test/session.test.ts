@@ -439,7 +439,7 @@ describe("exportSessionWithRetry", () => {
     } finally {
       await rm(testDir, { recursive: true, force: true });
     }
-  });
+  }, 30000); // Extended timeout for slow CLI calls with retries
 
   it("returns export data on success (requires opencode)", async () => {
     // This test requires opencode to be installed and a real session
