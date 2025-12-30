@@ -122,10 +122,16 @@ export async function listSessions(
   }
 }
 
+export interface ExportSessionOptions {
+  /** Skip Zod schema validation for faster processing */
+  skipValidation?: boolean;
+}
+
 // export single session using OpenCode CLI (must run from session directory)
 export async function exportSession(
   sessionId: string,
-  directory: string
+  directory: string,
+  options: ExportSessionOptions = {}
 ): Promise<OpenCodeExport> {
   // verify directory exists
   if (!(await fileExists(directory))) {
@@ -164,6 +170,11 @@ export async function exportSession(
       jsonStr = jsonStr.slice(jsonStart);
     }
 
+    // skip validation for faster processing if requested
+    if (options.skipValidation) {
+      return JSON.parse(jsonStr) as OpenCodeExport;
+    }
+
     const parsed = OpenCodeExportSchema.safeParse(JSON.parse(jsonStr));
     if (!parsed.success) {
       throw new Error(
@@ -192,14 +203,15 @@ export async function exportSession(
 export async function exportSessionWithRetry(
   sessionId: string,
   directory: string,
-  maxRetries = 1
+  maxRetries = 1,
+  options: ExportSessionOptions = {}
 ): Promise<OpenCodeExport | null> {
   let lastError: Error | null = null;
   let lastStderr: string | undefined;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await exportSession(sessionId, directory);
+      return await exportSession(sessionId, directory, options);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       // try to extract stderr from error message

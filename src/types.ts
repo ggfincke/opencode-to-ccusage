@@ -171,6 +171,12 @@ export interface ExportOptions {
   verbose: boolean;
   groupBy: GroupBy;
   openCodeDir?: string;
+  /** Override concurrency level for parallel processing */
+  concurrency?: number;
+  /** Only re-export sessions updated since last export (compare mtime) */
+  incremental?: boolean;
+  /** Skip Zod schema validation for faster processing */
+  skipValidation?: boolean;
 }
 
 export interface ExportStats {

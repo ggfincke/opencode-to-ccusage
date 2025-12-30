@@ -2,7 +2,7 @@
 // main export orchestration & statistics
 
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import cliProgress from "cli-progress";
 import pLimit from "p-limit";
@@ -120,8 +120,8 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
     return stats;
   }
 
-  // determine concurrency level
-  const concurrency = getOptimalConcurrency();
+  // determine concurrency level (use override if provided)
+  const concurrency = getOptimalConcurrency(options.concurrency);
   verboseLog(
     options.verbose,
     `Found ${pluralize(sessions.length, "session")}, processing with concurrency ${concurrency}`
@@ -172,9 +172,25 @@ export async function runExport(options: ExportOptions): Promise<ExportStats> {
       return { exported: false, skipped: true, messagesConverted: 0, messagesSkipped: 0 };
     }
 
+    // incremental mode: skip if output file is newer than session update time
+    if (options.incremental && (await fileExists(outFile))) {
+      try {
+        const fileStat = await stat(outFile);
+        // session.updated is in ms, stat.mtimeMs is in ms
+        if (fileStat.mtimeMs >= session.updated) {
+          verboseLog(options.verbose, `Skipping ${session.id} (unchanged since last export)`);
+          return { exported: false, skipped: true, messagesConverted: 0, messagesSkipped: 0 };
+        }
+      } catch {
+        // if stat fails, proceed with export
+      }
+    }
+
     // export session (must run from session's directory)
     verboseLog(options.verbose, `Exporting ${session.id} from ${session.directory}...`);
-    const exported = await exportSessionWithRetry(session.id, session.directory);
+    const exported = await exportSessionWithRetry(session.id, session.directory, 1, {
+      skipValidation: options.skipValidation,
+    });
     if (!exported) {
       return {
         exported: false,

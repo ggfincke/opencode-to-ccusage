@@ -19,6 +19,21 @@ export const exportCommand = new Command("export")
   )
   .option("--dry-run", "Preview without writing files", false)
   .option("-v, --verbose", "Show detailed progress", false)
+  .option(
+    "-c, --concurrency <number>",
+    "Number of parallel exports (default: auto-detected based on CPU)",
+    (val) => parseInt(val, 10)
+  )
+  .option(
+    "--incremental",
+    "Only re-export sessions updated since last export",
+    false
+  )
+  .option(
+    "--skip-validation",
+    "Skip schema validation for faster processing",
+    false
+  )
   .action(async (opts) => {
     const since = parseSinceOrExit(opts.since);
 
@@ -26,6 +41,9 @@ export const exportCommand = new Command("export")
       since,
       dryRun: opts.dryRun,
       verbose: opts.verbose,
+      concurrency: opts.concurrency,
+      incremental: opts.incremental,
+      skipValidation: opts.skipValidation,
     });
 
     try {

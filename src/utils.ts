@@ -1,13 +1,10 @@
 // src/utils.ts
 // utility functions for timestamps, validation & command execution
 
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import os from "node:os";
-import { promisify } from "node:util";
 import { MAX_BUFFER } from "./constants.js";
-
-const execAsync = promisify(exec);
 
 // convert unix timestamp (milliseconds) to ISO 8601 string
 export function toISOTimestamp(unixMs: number): string {
@@ -94,11 +91,15 @@ export function formatCurrency(amount: number): string {
 
 // determine optimal concurrency for parallel I/O operations
 // based on system resources (CPU count)
-export function getOptimalConcurrency(): number {
+export function getOptimalConcurrency(override?: number): number {
+  // allow explicit override via CLI flag
+  if (override !== undefined && override > 0) {
+    return override;
+  }
   const cpus = os.cpus().length;
-  // For I/O-bound work (CLI subprocesses), use ~50% of CPUs
-  // Min 4 for responsiveness, max 16 to avoid overwhelming system
-  return Math.max(4, Math.min(16, Math.floor(cpus * 0.5)));
+  // I/O-bound subprocess work benefits from higher concurrency
+  // Min 8 for responsiveness, max 32 to avoid overwhelming system
+  return Math.max(8, Math.min(32, cpus * 2));
 }
 
 export interface ExecError extends Error {
@@ -126,50 +127,73 @@ export interface ExecResult {
   exitCode: number;
 }
 
-// execute command & return stdout
+// escape argument for shell (single-quote with escaping)
+function shellEscape(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+// execute command & return stdout using spawn (more efficient than exec)
 export async function execCommand(
   command: string,
   args: string[],
   cwd?: string,
   outputFile?: string
 ): Promise<ExecResult> {
-  // escape arguments for shell
-  const escapedArgs = args.map((arg) => `'${arg.replace(/'/g, "'\\''")}'`);
-  let fullCommand = `${command} ${escapedArgs.join(" ")}`;
+  return new Promise((resolve, reject) => {
+    let child;
 
-  // redirect stdout to file if specified
-  if (outputFile) {
-    fullCommand += ` > '${outputFile.replace(/'/g, "'\\''")}'`;
-  }
+    // when outputFile is specified, use shell redirection to avoid pipe buffering issues
+    // some programs (like opencode) don't flush stdout properly when piped
+    if (outputFile) {
+      const escapedArgs = args.map(shellEscape).join(" ");
+      const escapedOutput = shellEscape(outputFile);
+      const shellCmd = `${command} ${escapedArgs} > ${escapedOutput}`;
+      child = spawn("sh", ["-c", shellCmd], {
+        cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } else {
+      child = spawn(command, args, {
+        cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    }
 
-  try {
-    const { stdout, stderr } = await execAsync(fullCommand, {
-      maxBuffer: MAX_BUFFER,
-      encoding: "utf-8",
-      cwd,
+    let stdout = "";
+    let stderr = "";
+    let stdoutSize = 0;
+    let stderrSize = 0;
+
+    child.stdout?.on("data", (data: Buffer) => {
+      const chunk = data.toString();
+      stdoutSize += chunk.length;
+      if (stdoutSize <= MAX_BUFFER) {
+        stdout += chunk;
+      }
     });
-    return { stdout, stderr, exitCode: 0 };
-  } catch (err: unknown) {
-    // use type guard for proper error typing
-    if (!isExecError(err)) {
-      throw new Error(`Failed to execute ${command}: ${getErrorMessage(err)}`);
-    }
 
-    if (err.message?.includes("command not found") || err.message?.includes("ENOENT")) {
-      throw new Error(
-        `Failed to execute ${command}: command not found. Is OpenCode installed?`
-      );
-    }
+    child.stderr?.on("data", (data: Buffer) => {
+      const chunk = data.toString();
+      stderrSize += chunk.length;
+      if (stderrSize <= MAX_BUFFER) {
+        stderr += chunk;
+      }
+    });
 
-    // if it's exit code error, return output anyway
-    if (typeof err.code === "number" || err.stdout !== undefined) {
-      return {
-        stdout: err.stdout ?? "",
-        stderr: err.stderr ?? "",
-        exitCode: typeof err.code === "number" ? err.code : 1,
-      };
-    }
+    child.on("close", (code) => {
+      resolve({ stdout, stderr, exitCode: code ?? 0 });
+    });
 
-    throw new Error(`Failed to execute ${command}: ${err.message}`);
-  }
+    child.on("error", (err) => {
+      if (err.message.includes("ENOENT") || err.message.includes("spawn")) {
+        reject(
+          new Error(
+            `Failed to execute ${command}: command not found. Is OpenCode installed?`
+          )
+        );
+      } else {
+        reject(new Error(`Failed to execute ${command}: ${err.message}`));
+      }
+    });
+  });
 }

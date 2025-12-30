@@ -17,6 +17,7 @@ import {
   formatNumber,
   formatCurrency,
   isExecError,
+  getOptimalConcurrency,
   type ExecError,
 } from "../src/utils.js";
 
@@ -235,6 +236,35 @@ describe("pluralize", () => {
 
   it("handles negative numbers", () => {
     expect(pluralize(-1, "item")).toBe("-1 items");
+  });
+});
+
+describe("getOptimalConcurrency", () => {
+  it("returns override when provided", () => {
+    expect(getOptimalConcurrency(10)).toBe(10);
+    expect(getOptimalConcurrency(1)).toBe(1);
+    expect(getOptimalConcurrency(100)).toBe(100);
+  });
+
+  it("ignores non-positive overrides", () => {
+    const defaultResult = getOptimalConcurrency();
+    expect(getOptimalConcurrency(0)).toBe(defaultResult);
+    expect(getOptimalConcurrency(-5)).toBe(defaultResult);
+  });
+
+  it("returns a reasonable default based on CPU count", () => {
+    const result = getOptimalConcurrency();
+    const cpus = os.cpus().length;
+    const expected = Math.max(8, Math.min(32, cpus * 2));
+    expect(result).toBe(expected);
+  });
+
+  it("is at least 8", () => {
+    expect(getOptimalConcurrency()).toBeGreaterThanOrEqual(8);
+  });
+
+  it("is at most 32 without override", () => {
+    expect(getOptimalConcurrency()).toBeLessThanOrEqual(32);
   });
 });
 

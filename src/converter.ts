@@ -133,5 +133,10 @@ export function convertSession(
 // serialize ccusage lines to JSONL format
 export function toJsonl(lines: CcusageLine[]): string {
   if (lines.length === 0) return "";
-  return lines.map((line) => JSON.stringify(line)).join("\n") + "\n";
+  // pre-allocate array for better memory allocation
+  const parts = new Array<string>(lines.length);
+  for (let i = 0; i < lines.length; i++) {
+    parts[i] = JSON.stringify(lines[i]);
+  }
+  return parts.join("\n") + "\n";
 }

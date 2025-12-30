@@ -56,6 +56,34 @@ describe("createExportOptions", () => {
     });
     expect(options.groupBy).toBe("directory");
   });
+
+  it("allows setting concurrency override", () => {
+    const options = createExportOptions("/output/dir", {
+      concurrency: 16,
+    });
+    expect(options.concurrency).toBe(16);
+  });
+
+  it("allows enabling incremental mode", () => {
+    const options = createExportOptions("/output/dir", {
+      incremental: true,
+    });
+    expect(options.incremental).toBe(true);
+  });
+
+  it("allows enabling skipValidation", () => {
+    const options = createExportOptions("/output/dir", {
+      skipValidation: true,
+    });
+    expect(options.skipValidation).toBe(true);
+  });
+
+  it("defaults new performance options to undefined/false", () => {
+    const options = createExportOptions("/output/dir");
+    expect(options.concurrency).toBeUndefined();
+    expect(options.incremental).toBeUndefined();
+    expect(options.skipValidation).toBeUndefined();
+  });
 });
 
 describe("printSummary", () => {

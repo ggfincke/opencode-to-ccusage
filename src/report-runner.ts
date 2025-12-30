@@ -115,35 +115,49 @@ export async function runCombinedReport(options: CombinedReportOptions): Promise
     }
   }
 
-  // get Claude Code usage
+  // get Claude Code and OpenCode usage in parallel for better performance
   if (typeof combineArg === "string") {
-    // load from file
+    // load Claude Code from file, run OpenCode ccusage in parallel
     verboseLog(verbose, `Loading Claude Code usage from file: ${combineArg}\n`);
-    const claudeData = await loadCcusageJson(combineArg);
+    verboseLog(verbose, "Getting OpenCode usage...\n");
+
+    const [claudeData, opencodeData] = await Promise.all([
+      loadCcusageJson(combineArg),
+      runCcusageJson(OPENCODE_CONFIG_DIR, ccusageArgs, verbose),
+    ]);
+
     if (claudeData) {
       reports.push({ data: claudeData, source: "Claude Code" });
     } else {
       console.error(`Failed to load ccusage JSON from: ${combineArg}`);
       return 1;
     }
+
+    if (opencodeData) {
+      reports.push({ data: opencodeData, source: "OpenCode" });
+    } else {
+      verboseLog(verbose, "No OpenCode usage data found or ccusage failed.\n");
+    }
   } else {
-    // run ccusage for Claude Code - let ccusage auto-detect directories
-    verboseLog(verbose, "Getting Claude Code usage...\n");
-    const claudeData = await runCcusageJson(undefined, ccusageArgs, verbose);
+    // run ccusage for both Claude Code and OpenCode in parallel
+    verboseLog(verbose, "Getting Claude Code and OpenCode usage...\n");
+
+    const [claudeData, opencodeData] = await Promise.all([
+      runCcusageJson(undefined, ccusageArgs, verbose),
+      runCcusageJson(OPENCODE_CONFIG_DIR, ccusageArgs, verbose),
+    ]);
+
     if (claudeData) {
       reports.push({ data: claudeData, source: "Claude Code" });
     } else {
       verboseLog(verbose, "No Claude Code usage data found or ccusage failed.\n");
     }
-  }
 
-  // get OpenCode usage
-  verboseLog(verbose, "Getting OpenCode usage...\n");
-  const opencodeData = await runCcusageJson(OPENCODE_CONFIG_DIR, ccusageArgs, verbose);
-  if (opencodeData) {
-    reports.push({ data: opencodeData, source: "OpenCode" });
-  } else {
-    verboseLog(verbose, "No OpenCode usage data found or ccusage failed.\n");
+    if (opencodeData) {
+      reports.push({ data: opencodeData, source: "OpenCode" });
+    } else {
+      verboseLog(verbose, "No OpenCode usage data found or ccusage failed.\n");
+    }
   }
 
   // merge & display
