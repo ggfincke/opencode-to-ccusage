@@ -4,6 +4,8 @@ Export OpenCode sessions to ccusage-compatible JSONL format.
 
 This tool converts OpenCode session data into the JSONL format that [ccusage](https://github.com/ryoppippi/ccusage) understands, allowing you to track your OpenCode usage alongside Claude Code usage.
 
+> **Note:** This project is largely obsolete as of January 2026. Anthropic has patched the method that allowed using a Claude Code subscription with OpenCode. This tool still works for exporting historical OpenCode session data to ccusage format, but the original use case is no longer viable.
+
 ## Installation
 
 ```bash
